@@ -6,7 +6,11 @@ const VLazyImageComponent = {
     },
     srcPlaceholder: {
       type: String,
-      default: "data:,"
+      default: "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"
+    },
+    srcFallback: {
+      type: String,
+      default: "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"
     },
     srcset: {
       type: String
@@ -21,12 +25,18 @@ const VLazyImageComponent = {
     }
   },
   inheritAttrs: false,
-  data: () => ({ observer: null, intersected: false, loaded: false }),
+  data: () => ({ observer: null, intersected: false, loaded: false, notFound: false }),
   computed: {
     srcImage() {
+      if (this.notFound) {
+        return this.srcFallback;
+      }
       return this.intersected && this.src ? this.src : this.srcPlaceholder;
     },
     srcsetImage() {
+      if (this.notFound) {
+        return false;
+      }
       return this.intersected && this.srcset ? this.srcset : false;
     }
   },
@@ -38,6 +48,7 @@ const VLazyImageComponent = {
       }
     },
     error() {
+      this.notFound = true;
       this.$emit("error", this.$el)
     }
   },
@@ -80,6 +91,8 @@ const VLazyImageComponent = {
   destroyed() {
     if ("IntersectionObserver" in window) {
       this.observer.disconnect();
+    } else {
+      return
     }
   }
 };
