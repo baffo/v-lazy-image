@@ -6,7 +6,11 @@ const VLazyImageComponent = {
     },
     srcPlaceholder: {
       type: String,
-      default: "data:,"
+      default: "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"
+    },
+    srcFallback: {
+      type: String,
+      default: "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"
     },
     srcset: {
       type: String
@@ -21,12 +25,18 @@ const VLazyImageComponent = {
     }
   },
   inheritAttrs: false,
-  data: () => ({ observer: null, intersected: false, loaded: false }),
+  data: () => ({ observer: null, intersected: false, loaded: false, notFound: false }),
   computed: {
     srcImage() {
+      if (this.notFound) {
+        return this.srcFallback;
+      }
       return this.intersected && this.src ? this.src : this.srcPlaceholder;
     },
     srcsetImage() {
+      if (this.notFound) {
+        return false;
+      }
       return this.intersected && this.srcset ? this.srcset : false;
     }
   },
@@ -34,10 +44,11 @@ const VLazyImageComponent = {
     load() {
       if (this.$el.getAttribute("src") !== this.srcPlaceholder) {
         this.loaded = true;
-        this.$emit("load");
+        this.$emit("load", this.$el);
       }
     },
     error() {
+      this.notFound = true;
       this.$emit("error", this.$el)
     }
   },
@@ -55,11 +66,11 @@ const VLazyImageComponent = {
       on: { load: this.load, error: this.error }
     });
     if (this.usePicture) {
-      return h(
-        "picture",
-        { on: { load: this.load } },
-        this.intersected ? [this.$slots.default, img] : [img]
-      );
+      if (!this.intersected) {
+        return h("picture", {attrs: {style: "padding: 1px;"}, domProps: this.$attrs});
+      } else {
+        return h("picture", { on: { load: this.load } }, this.intersected ? [ this.$slots.default, img ] : [] );
+      }
     } else {
       return img;
     }
@@ -67,8 +78,10 @@ const VLazyImageComponent = {
   mounted() {
     if ("IntersectionObserver" in window) {
       this.observer = new IntersectionObserver(entries => {
-        const image = entries[0];
-        if (image.isIntersecting) {
+        // Use `intersectionRatio` because of Edge 15's
+        // lack of support for `isIntersecting`.
+        // See: https://github.com/w3c/IntersectionObserver/issues/211
+        if (entries.some(e => e.isIntersecting || e.intersectionRatio > 0)) {
           this.intersected = true;
           this.observer.disconnect();
           this.$emit("intersect");
@@ -78,8 +91,10 @@ const VLazyImageComponent = {
     }
   },
   destroyed() {
-    if ("IntersectionObserver" in window) {
+    if (this.observer) {
       this.observer.disconnect();
+    } else {
+      return
     }
   }
 };
